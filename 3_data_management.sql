@@ -1,6 +1,7 @@
 -- 3.1
+
 --========================================================= students
-create or replace function insert_students(count integer, date_entry date) returns void
+create or replace function ex_3_1_insert_students(count integer, date_entry date) returns void
     volatile
     language plpgsql
 as
@@ -23,10 +24,10 @@ BEGIN
     );
 END;
 $$;
-alter function insert_students(int, date) owner to postgres;
+alter function ex_3_1_insert_students(int, date) owner to postgres;
 
 --========================================================= professors
-create or replace function insert_professors(count integer) returns void
+create or replace function ex_3_1_insert_professors(count integer) returns void
     volatile
     language plpgsql
 as
@@ -53,11 +54,10 @@ BEGIN
     );
 END;
 $$;
-alter function insert_professors(integer) owner to postgres;
-
+alter function ex_3_1_insert_professors(integer) owner to postgres;
 
 --========================================================= lab staff
-create or replace function insert_labstaff(count integer) returns void
+create or replace function ex_3_1_insert_labstaff(count integer) returns void
     volatile
     language plpgsql
 as
@@ -84,5 +84,117 @@ BEGIN
     );
 END;
 $$;
-alter function insert_labstaff(integer) owner to postgres;
+alter function ex_3_1_insert_labstaff(integer) owner to postgres;
 
+-- 3.2
+
+create or replace function ex_3_2_update_score(semester int)
+    returns table (amka int, serial_number int,  course_code char(7), exam_grade numeric, final_grade numeric, lab_grade numeric, register_status register_status_type)
+    language plpgsql
+as
+$$
+BEGIN
+    RETURN QUERY
+        select r.amka,
+            r.serial_number,
+            r.course_code,
+            ex_3_2_exam_score(r.amka, r.course_code, semester),
+            ex_3_2_final_score(r.amka, r.course_code, semester),
+            ex_3_2_lab_score(r.amka, r.course_code, semester),
+            r.register_status
+        from "Register" r
+        where r.serial_number = semester and r.register_status = 'approved';
+END;
+$$;
+alter function ex_3_2_update_score(int) owner to postgres;
+
+create or replace function ex_3_2_lab_score(student_amka int, lab_course_code char(7), current_semester int) returns numeric
+    language plpgsql
+as
+$$
+declare
+    current_lab_row  "Register" % rowtype;
+    previous_lab_row "Register" % rowtype;
+    course_lab_row "Course" % rowtype;
+begin
+    -- check to see if there is a lab grade already
+    select * into current_lab_row
+    from "Register" r
+    where student_amka = r.amka and lab_course_code = r.course_code and r.serial_number = current_semester;
+    if current_lab_row.lab_grade is not null then return current_lab_row.lab_grade; end if;
+
+    -- check to see if course has lab
+    select * into course_lab_row
+    from "Course" c
+    where c.course_code = lab_course_code;
+    if course_lab_row.lab_hours = 0 then return null; end if;
+
+    -- get previous lab row
+    select * into previous_lab_row
+    from "Register" r
+    where student_amka = r.amka and lab_course_code = r.course_code and r.serial_number = current_semester - 2;
+
+    if previous_lab_row.lab_grade >= 5 then return previous_lab_row.lab_grade; -- get previous grade
+    else return floor (random() * 10); end if;  -- generate random
+
+end;
+$$;
+alter function ex_3_2_lab_score(int, char(7), int) owner to postgres;
+
+create or replace function ex_3_2_exam_score(student_amka int, exam_course_code char(7), current_semester int) returns numeric
+    language plpgsql
+as
+$$
+declare
+    course_info "CourseRun" % rowtype;
+    current_lab_row  "Register" % rowtype;
+begin
+    -- check to see if an exam grade already exists
+    select * into current_lab_row
+    from "Register" r
+    where student_amka = r.amka and exam_course_code = r.course_code and r.serial_number = current_semester;
+    if current_lab_row.exam_grade is not null then return current_lab_row.exam_grade; end if;
+
+    -- get course info
+    select * into course_info
+    from "CourseRun" cr
+    where cr.course_code = exam_course_code and cr.serial_number = current_semester;
+    if ex_3_2_lab_score(student_amka, exam_course_code, current_semester) < course_info.lab_min then return 0;
+    else return floor (random() * 10); end if;  -- generate random if it doesn't
+end;
+$$;
+alter function ex_3_2_exam_score(int, char(7), int) owner to postgres;
+
+create or replace function ex_3_2_final_score(student_amka int, final_course_code char(7), current_semester int) returns numeric
+    language plpgsql
+as
+$$
+declare
+    course_info "CourseRun" % rowtype;
+    current_lab_row  "Register" % rowtype;
+    exam_grade int;
+    lab_grade int;
+begin
+    -- check to see if a final grade already exists
+    select * into current_lab_row
+    from "Register" r
+    where student_amka = r.amka and final_course_code = r.course_code and r.serial_number = current_semester;
+    if current_lab_row.final_grade is not null then return current_lab_row.final_grade; end if;
+
+    -- get course info
+    select * into course_info
+    from "CourseRun" cr
+    where cr.course_code = final_course_code and cr.serial_number = current_semester;
+
+    exam_grade = ex_3_2_exam_score(student_amka, final_course_code, current_semester);
+    lab_grade = ex_3_2_lab_score(student_amka, final_course_code, current_semester);
+
+    -- Constraints
+    if lab_grade is null then return exam_grade;
+    elseif lab_grade < course_info.lab_min then return 0; -- if didn't pass lab
+    elseif exam_grade < course_info.exam_min then return exam_grade; -- if didn't pass exam
+    else return exam_grade * course_info.exam_percentage + lab_grade * (1 - course_info.exam_percentage);
+    end if;
+end;
+$$;
+alter function ex_3_2_final_score(int, char(7), int) owner to postgres;
