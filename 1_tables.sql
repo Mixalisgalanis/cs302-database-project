@@ -111,3 +111,57 @@ insert into "Participates" VALUES ('participant', 20018, 4, 15, 17, 2, 'ΜΑΘ 1
 insert into "Participates" VALUES ('participant', 20020, 1, 11, 14, 4, 'ΠΛΗ 302', 22);
 insert into "Participates" VALUES ('participant', 20002, 1, 15, 17, 2, 'ΜΑΘ 101', 21);
 
+-- fill rooms
+create or replace function ex_1_insert_rooms(count integer) returns void
+    volatile
+    language plpgsql
+as
+$$
+BEGIN
+    INSERT INTO "Room" (
+        select (random_room.id + COUNT(room.room_id))::int room_id,
+               case when random_room.r = 'lecture_room' then (random() * (170) + 30)::int -- 30~200
+                    when random_room.r = 'office' then (random() * 17 + 3)::int  --3~20
+                    when random_room.r = 'lab_room' then (random() * 20 + 10)::int  --10~30
+                    when random_room.r = 'computer_room' then (random() * 10 + 20)::int  --20~30
+                    else 0
+               end,
+               random_room.r as room_type
+        from (select row_number() over ()::int id, rand_rooms.r as r
+            from (select floor(ids * 4 + 1) as id from generate_series(0,1, 1.0 / count) ids order by random()) rand_id,
+                 (select r, row_number() over ()::int as id from unnest(enum_range(NULL::room_type)) r) rand_rooms
+            where rand_id.id = rand_rooms.id) random_room,
+             "Room" room
+        group by random_room.id, random_room.r
+        order by random_room.id
+    );
+END;
+$$;
+alter function ex_1_insert_rooms(int) owner to postgres;
+
+create or replace function ex_1_insert_learning_activities(count integer) returns void
+    volatile
+    language plpgsql
+as
+$$
+DECLARE
+BEGIN
+    INSERT INTO "LearningActivity" (
+        select random_act.la activity_time,
+               (random() * 10 + 8)::int start_time,
+               start_time + (random() * 3)::int end_time,
+               (random() * 4 + 1)::int weekday,
+               'AΓΓ 101',
+               (random() * (max(cr.serial_number) - 1) + 1)::int serial_number,
+               1
+        from (select row_number() over ()::int id, rand_rooms.la as la
+             from (select floor(ids * 5 + 1) as id from generate_series(0.1, 1, 1.0 / 35) ids order by random()) rand_id,
+                  (select la, row_number() over ()::int as id from unnest(enum_range(NULL::activity_type)) la) rand_rooms
+             where rand_id.id = rand_rooms.id) random_act,
+             "CourseRun" cr
+    );
+END;
+$$;
+alter function ex_1_insert_learning_activities(int) owner to postgres;
+
+select * from ex_1_insert_learning_activities(6);
