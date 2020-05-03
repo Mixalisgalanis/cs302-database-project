@@ -180,3 +180,94 @@ END;
 $$;
 alter function ex_4_8_find_rooms_with_most_courses() owner to postgres;
 
+
+-- 4.9
+
+create or replace function ex_4_9_find_max_consecutive_room_hours()
+    returns TABLE(room_id int, weekday int, start_time int, end_time int, semester int)
+    volatile
+    language plpgsql
+as
+$$
+DECLARE
+    room record;
+    day record;
+    sem record;
+    temp_record record;
+
+    temp_hours int;
+    temp_room_id int;
+    temp_weekday int;
+
+    prev_end_time int = 0;
+
+    max_hours int = 0;
+    max_room_id int = 0;
+    max_weekday int = 0;
+    max_start_time int = 0;
+BEGIN
+    drop table if exists temp_table;
+    create temporary table temp_table (room_id int, weekday int, start_time int, end_time int, semester int);
+    for sem in (select distinct la.serial_number from "LearningActivity" la order by la.serial_number)
+        loop
+            for day in (select distinct la.weekday from "LearningActivity" la order by la.weekday)
+                loop
+                    for room in (select distinct la.room_id from "LearningActivity" la order by la.room_id)
+                        loop
+                            temp_hours = 0;
+                            temp_room_id = room.room_id;
+                            temp_weekday = day.weekday;
+                            max_hours = 0;
+                            max_start_time = 0;
+                            for temp_record in (select * from "LearningActivity" la where la.room_id = room.room_id and la.weekday = day.weekday and la.serial_number = sem.serial_number order by la.start_time)
+                                loop
+                                    if prev_end_time = 0 then -- first time only
+                                        prev_end_time = temp_record.start_time;
+                                        max_start_time = temp_record.start_time;
+                                    end if;
+                                    if temp_record.start_time = prev_end_time then
+                                        temp_hours = temp_hours + (temp_record.end_time - temp_record.start_time);
+                                    else
+                                        temp_hours = (temp_record.end_time - temp_record.start_time);
+                                        max_start_time = temp_record.start_time;
+                                    end if;
+                                    if temp_hours > max_hours then
+                                            max_hours = temp_hours;
+                                            max_room_id = room.room_id;
+                                            max_weekday = day.weekday;
+                                    end if;
+                                    prev_end_time = temp_record.end_time;
+                                end loop;
+                            insert into temp_table values (room.room_id, day.weekday, max_start_time, max_start_time + max_hours, sem.serial_number);
+                        end loop;
+                end loop;
+        end loop;
+    return query
+        select * from temp_table t order by t.semester, t.weekday, t.room_id;
+END;
+$$;
+alter function ex_4_9_find_max_consecutive_room_hours() owner to postgres;
+
+-- 4.10
+
+create or replace function ex_4_10_get_amkas_for_set_room_capacity(MIN_C int, MAX_C int)
+    returns TABLE(amka int)
+    immutable
+    language plpgsql
+as
+$$
+BEGIN
+    RETURN QUERY
+        select par.amka
+        from  "Room" r, "Participates" par
+        where r.room_id = par.room_id and
+              r.capacity >= MIN_C and
+              r.capacity <= MAX_C and
+              par.role = 'responsible' and
+              par.amka in (select prof.amka from "Professor" prof);
+END;
+$$;
+alter function ex_4_10_get_amkas_for_set_room_capacity(int, int) owner to postgres;
+
+
+

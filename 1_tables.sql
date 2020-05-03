@@ -56,7 +56,9 @@ create table "Participates" (
     constraint "Room_fkey" foreign key (room_id)
         references public."Room" (room_id),
     constraint "Person_fkey" foreign key (amka)
-        references public."Person" (amka)
+        references public."Person" (amka),
+    constraint "Course_fkey" foreign key (course_code)
+        references public."Course" (course_code)
 );
 alter table "Participates" owner to postgres;
 
