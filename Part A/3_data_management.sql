@@ -198,3 +198,5 @@ begin
 end;
 $$;
 alter function ex_3_2_final_score(int, char(7), int) owner to postgres;
+
+-- 3.3

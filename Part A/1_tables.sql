@@ -32,7 +32,7 @@ create table "LearningActivity" (
     course_code char(7) not null,
     serial_number int not null,
     room_id int not null,
-    constraint "LearningActivity_pkey" primary key (start_time, end_time, weekday, course_code, serial_number),
+    constraint "LearningActivity_pkey" primary key (start_time, end_time, weekday, course_code, serial_number, room_id),
     constraint "CourseRun_fkey" foreign key (serial_number, course_code)
         references public."CourseRun" (serial_number, course_code),
     constraint "Room_fkey" foreign key (room_id)

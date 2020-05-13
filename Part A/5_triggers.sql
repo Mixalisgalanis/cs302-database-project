@@ -104,6 +104,7 @@ alter function ex_5_1_handler_update_check_participants() owner to postgres;
 
 
 --================================================5.2
+
 -- insert
 create trigger ex_5_2_trigger_insert_check_activities before insert
     on "LearningActivity"
@@ -165,3 +166,31 @@ $$
     END;
 $$;
 alter function ex_5_2_handler_update_check_activities() owner to postgres;
+
+--================================================5.3
+
+-- insert
+create trigger ex_5_3_trigger_insert_new_courses after insert
+    on "Semester"
+    for each row
+    execute procedure ex_5_3_handler_insert_new_courses();
+create or replace function ex_5_3_handler_insert_new_courses() returns trigger
+    volatile
+    language plpgsql
+as
+$$
+    DECLARE
+        current_course record;
+        last_course record;
+    BEGIN
+        if new.semester_status <> 'future' then return new;
+        end if;
+        for current_course in (select c.course_code from "Course" c where c.typical_season = new.academic_season)
+        loop
+            select * into last_course from "CourseRun" cr where cr.course_code = current_course.course_code order by serial_number desc limit 1;
+            insert into "CourseRun" values (current_course.course_code, new.semester_id, last_course.exam_min, last_course.lab_min, last_course.exam_percentage, last_course.labuses, new.semester_id, last_course.amka_prof1, last_course.amka_prof2);
+        end loop;
+        return new;
+    END;
+$$;
+alter function ex_5_3_handler_insert_new_courses() owner to postgres;
