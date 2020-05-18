@@ -200,3 +200,72 @@ $$;
 alter function ex_3_2_final_score(int, char(7), int) owner to postgres;
 
 -- 3.3
+
+create or replace function ex_3_3_insert_activities(course char(7), semester int) returns void
+    language plpgsql
+as
+$$
+declare
+    selected_course record;
+    temp_type record;
+    temp_room record; temp_weekday record;
+    temp_activity "LearningActivity" % rowtype;
+    available_start_time int;  expected_end_time int;
+begin
+    -- extract course information
+    select * into selected_course from "Course" c where course = c.course_code;
+
+    drop table if exists hours_type;
+    create temporary table hours_type (r_type room_type, act_type activity_type, hours int);
+
+    insert into hours_type values ('lecture_room', 'lecture', selected_course.lecture_hours),
+                                  ('lecture_room', 'tutorial', selected_course.tutorial_hours),
+                                  ('lab_room', 'lab', selected_course.lab_hours);
+    for temp_type in (select * from hours_type)
+    loop
+         raise notice '%', temp_type;
+         <<type_label>> begin -- insert priority: same room -> same weekday -> consecutive hours
+            if temp_type.hours > 0 then
+                -- Check if hours already exist
+                select * into temp_activity from "LearningActivity" la where la.activity_type = temp_type.act_type and la.course_code = course and la.serial_number = semester limit 1;
+                if temp_activity is not null then
+                    raise notice '% hours already added!', temp_type.act_type;
+                    exit type_label;
+                end if;
+
+                -- If they don't
+                for temp_room in (select r.room_id from "Room" r where r.room_type = temp_type.r_type) -- for each room
+                loop
+                    for temp_weekday in 1..5 -- for each day (excluding saturday and sunday)
+                    loop
+                        available_start_time = 8;
+                        expected_end_time = available_start_time + temp_type.hours;
+                        -- Check if there is any activity on that day
+                        select * into temp_activity from "LearningActivity" la where la.weekday = temp_weekday and la.serial_number = semester and la.room_id = temp_room.room_id order by la.start_time limit 1;
+                        if temp_activity is null then
+                            raise notice 'first activity of the day! Inserting %, %, %, %, %, %, %', temp_type.act_type, available_start_time, expected_end_time, temp_weekday, course, semester, temp_room.room_id;
+                            insert into "LearningActivity" values (temp_type.act_type, available_start_time, expected_end_time, temp_weekday, course, semester, temp_room.room_id);
+                            exit type_label;
+                        -- if there is at least an activity on that day
+                        else
+                            raise notice 'there is at least one activity on this day! Inserting %, %, %, %, %, %, %', temp_type.act_type, available_start_time, expected_end_time, temp_weekday, course, semester, temp_room.room_id;
+                            for temp_activity in (select la.start_time, la.end_time from "LearningActivity" la where la.activity_type = temp_type.act_type and la.weekday = temp_weekday and la.course_code = course and la.serial_number = semester and la.room_id = temp_room.room_id order by la.start_time)
+                            loop
+                                raise notice '%', temp_activity.start_time;
+                                if expected_end_time <= temp_activity.start_time then
+                                    insert into "LearningActivity" values (temp_type.act_type, available_start_time, expected_end_time, temp_weekday, course, semester, temp_room.room_id);
+                                    exit type_label;
+                                else
+                                    available_start_time = temp_activity.end_time;
+                                    expected_end_time = available_start_time + temp_type.hours;
+                                end if;
+                            end loop;
+                        end if;
+                    end loop;
+                end loop;
+            end if;
+        end;
+    end loop;
+end;
+$$;
+alter function ex_3_3_insert_activities(char(7), int) owner to postgres;

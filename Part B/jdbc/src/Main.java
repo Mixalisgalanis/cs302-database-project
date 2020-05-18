@@ -53,10 +53,6 @@ public class Main {
         String password = Util.readString("Enter Password: ");
 
         final int DEFAULT_PORT = 5432;
-        final String DEFAULT_IP = "localhost";
-        final String DEFAULT_DB_NAME = "cs302-partA";
-        final String DEFAULT_USERNAME = "postgres";
-        final String DEFAULT_PASSWORD = "Mg22101998";
         //Load the driver class
         try {
             Class.forName("org.postgresql.Driver");
@@ -68,8 +64,7 @@ public class Main {
 
         //get the connection
         try {
-            connection = DriverManager.getConnection("jdbc:postgresql://" + ((ip.equals("")) ? DEFAULT_IP : ip) + ":" + DEFAULT_PORT + "/" + ((databaseName.equals("")) ? DEFAULT_DB_NAME : databaseName), ((username.equals("")) ? DEFAULT_USERNAME : username), ((password.equals("")) ? DEFAULT_PASSWORD : password));
-            //connection = DriverManager.getConnection("jdbc:postgresql://" + ip + ":" + DEFAULT_PORT + "/" + databaseName, username, password);
+            connection = DriverManager.getConnection("jdbc:postgresql://" + ip + ":" + DEFAULT_PORT + "/" + databaseName, username, password);
             System.out.println("Successfully connected to database! " + databaseName);
             connection.setAutoCommit(false);
             System.out.println("Auto-Commit mode disabled!");
@@ -80,6 +75,7 @@ public class Main {
 
     public static void commit(){
         try {
+            if (connection == null) connectToDatabase();
             connection.commit();
             System.out.println("Transaction Completed!");
         } catch (SQLException e) {
@@ -89,6 +85,7 @@ public class Main {
 
     public static void rollback() {
         try {
+            if (connection == null) connectToDatabase();
             connection.rollback();
             System.out.println("Transaction cancelled!");
         } catch (SQLException e) {
@@ -98,6 +95,7 @@ public class Main {
 
     public static void rollback(Savepoint sp) {
         try {
+            if (connection == null) connectToDatabase();
             connection.rollback(sp);
             System.out.println("Transaction cancelled!");
         } catch (SQLException e) {
@@ -106,13 +104,15 @@ public class Main {
     }
 
     public static void displayRegisteredStudents(){
+        if (connection == null) connectToDatabase();
+
         String academicYear = Util.readString("Enter Academic Year: ");
         String academicSeason = Util.readString("Enter Academic Season: ");
         String courseCode = Util.readString("Enter course code: ");
 
         try{
             Statement statement = connection.createStatement();
-            ResultSet rs = statement.executeQuery("select r.amka from \"Semester\" s, \"Register\" r where s.academic_year = " + academicYear + " and s.academic_season = \'" + academicSeason + "\' and r.course_code = \'" + courseCode + "\' and s.semester_id = r.serial_number and r.register_status <> 'rejected' and r.register_status <> 'proposed'");
+            ResultSet rs = statement.executeQuery("select r.amka from \"Semester\" s, \"Register\" r where s.academic_year = " + academicYear + " and s.academic_season = \'" + academicSeason + "\' and r.course_code = \'" + courseCode + "\' and s.semester_id = r.serial_number and r.register_status <> 'rejected' and r.register_status <> 'proposed' order by r.amka");
 
             while (rs.next()) {
                 System.out.println("amka = " + rs.getInt(1));
@@ -120,11 +120,14 @@ public class Main {
 
             rs.close();
         } catch (SQLException e) {
+            rollback();
             e.printStackTrace();
         }
     }
 
     public static void updateStudentGrades(){
+        if (connection == null) connectToDatabase();
+
         String academicYear = Util.readString("Enter Academic Year: ");
         String academicSeason = Util.readString("Enter Academic Season: ");
         String amka = Util.readString("Enter Student amka: ");
@@ -188,6 +191,7 @@ public class Main {
             }
             rs.close();
         } catch (SQLException e) {
+            rollback();
             e.printStackTrace();
         }
     }

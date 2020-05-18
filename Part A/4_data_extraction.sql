@@ -1,6 +1,6 @@
 --4.1
 
-create or replace function ex_4_1()
+create or replace function ex_4_1_find_staff_teached_in_large_rooms()
     returns TABLE(name character, surname character, amka int)
     immutable
     language plpgsql
@@ -17,7 +17,7 @@ BEGIN
     where ls.amka = part.amka and r.room_id = part.room_id and r.capacity > 30;
 END;
 $$;
-alter function ex_4_1() owner to postgres;
+alter function ex_4_1_find_staff_teached_in_large_rooms() owner to postgres;
 
 --4.2
 
@@ -179,7 +179,6 @@ BEGIN
 END;
 $$;
 alter function ex_4_8_find_rooms_with_most_courses() owner to postgres;
-
 
 -- 4.9
 
