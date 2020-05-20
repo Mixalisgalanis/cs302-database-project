@@ -17,7 +17,7 @@ BEGIN
               date_entry as entry_date
        from random_names(count) as names,
             (select row_number() over ()::int id, sn.surname as surname from (select * from random_surnames(count) s) sn) surnames,
-            (select row_number() over ()::int id, fn.name as name, sex from (select n.name as name, sex from "Name" n where sex = 'M' order by random() limit 30) fn) father_names,
+            (select row_number() over ()::int id, fn.name as name, sex from (select n.name as name, sex from "Name" n where sex = 'M' order by random() limit count) fn) father_names,
             (select COUNT(s.am) as ams from "Student" s where s.am like concat(extract(year from date_entry), '%')) last_am,
             (select COUNT(*) as amkas from "Student") last_amka
        where names.id = father_names.id and surnames.id = names.id
@@ -269,3 +269,7 @@ begin
 end;
 $$;
 alter function ex_3_3_insert_activities(char(7), int) owner to postgres;
+
+
+
+select * from ex_3_1_insert_students(100000, '2020-09-10')
