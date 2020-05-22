@@ -140,30 +140,3 @@ BEGIN
 END;
 $$;
 alter function ex_1_insert_rooms(int) owner to postgres;
-
-create or replace function ex_1_insert_learning_activities(count integer) returns void
-    volatile
-    language plpgsql
-as
-$$
-DECLARE
-BEGIN
-    INSERT INTO "LearningActivity" (
-        select random_act.la activity_time,
-               (random() * 10 + 8)::int start_time,
-               start_time + (random() * 3)::int end_time,
-               (random() * 4 + 1)::int weekday,
-               'AΓΓ 101',
-               (random() * (max(cr.serial_number) - 1) + 1)::int serial_number,
-               1
-        from (select row_number() over ()::int id, rand_rooms.la as la
-             from (select floor(ids * 5 + 1) as id from generate_series(0.1, 1, 1.0 / 35) ids order by random()) rand_id,
-                  (select la, row_number() over ()::int as id from unnest(enum_range(NULL::activity_type)) la) rand_rooms
-             where rand_id.id = rand_rooms.id) random_act,
-             "CourseRun" cr
-    );
-END;
-$$;
-alter function ex_1_insert_learning_activities(int) owner to postgres;
-
-select * from ex_1_insert_learning_activities(6);

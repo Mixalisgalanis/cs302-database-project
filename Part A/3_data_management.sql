@@ -17,7 +17,7 @@ BEGIN
               date_entry as entry_date
        from random_names(count) as names,
             (select row_number() over ()::int id, sn.surname as surname from (select * from random_surnames(count) s) sn) surnames,
-            (select row_number() over ()::int id, fn.name as name, sex from (select n.name as name, sex from "Name" n where sex = 'M' order by random() limit count) fn) father_names,
+            random_names(count, 'M') father_names,
             (select COUNT(s.am) as ams from "Student" s where s.am like concat(extract(year from date_entry), '%')) last_am,
             (select COUNT(*) as amkas from "Student") last_amka
        where names.id = father_names.id and surnames.id = names.id
@@ -25,6 +25,54 @@ BEGIN
 END;
 $$;
 alter function ex_3_1_insert_students(int, date) owner to postgres;
+
+create or replace function random_names(n integer)
+    returns TABLE(name character, sex character, id integer)
+    language plpgsql
+as
+$$
+BEGIN
+RETURN QUERY
+    select names.name, names.sex, row_number() over ()::int id
+    from (select nam.name, nam.sex from (select floor(ids * 1009 + 1) as id from generate_series(0, 1, 1.0/n) ids order by random()) rand_names,
+         (select n.name, n.sex, row_number() over ()::int id from "Name" n order by random()) nam
+    where nam.id = rand_names.id
+    order by random()) names;
+END;
+$$;
+alter function random_names(integer) owner to postgres;
+
+create or replace function random_names(n integer, name_sex char)
+    returns TABLE(name character, sex character, id integer)
+    language plpgsql
+as
+$$
+BEGIN
+RETURN QUERY
+    select names.name, names.sex, row_number() over ()::int id
+    from (select nam.name, nam.sex from (select floor(ids * 274 + 1) as id from generate_series(0, 1, 1.0/n) ids order by random()) rand_names,
+         (select n.name, n.sex, row_number() over ()::int id from "Name" n where n.sex = name_sex order by random()) nam
+    where nam.id = rand_names.id
+    order by random()) names;
+END;
+$$;
+alter function random_names(integer) owner to postgres;
+
+create or replace function random_surnames(n integer)
+    returns TABLE(surname character, id integer)
+    language plpgsql
+as
+$$
+BEGIN
+RETURN QUERY
+    select surnames.surname, row_number() over ()::int id
+    from (select sur.surname from (select floor(ids * 110219 + 1) as id from generate_series(0, 1, 1.0/n) ids order by random()) rand_surnames,
+         (select s.surname, row_number() over ()::int id from "Surname" s order by random()) sur
+         where sur.id = rand_surnames.id
+         order by random()) surnames;
+END;
+$$;
+alter function random_surnames(integer) owner to postgres;
 
 --========================================================= professors
 create or replace function ex_3_1_insert_professors(count integer) returns void
@@ -272,4 +320,3 @@ alter function ex_3_3_insert_activities(char(7), int) owner to postgres;
 
 
 
-select * from ex_3_1_insert_students(100000, '2020-09-10')

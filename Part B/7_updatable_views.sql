@@ -1,13 +1,13 @@
 -- 7.1
 
-create or replace view ex_7_1 as
+create or replace view part_b_ex_2_1 as
 select *
 from "Room"
 where room_type = 'lecture_room';
 
 -- 7.2
 
-create or replace view ex_7_2 as
+create or replace view part_b_ex_2_2 as
 select p.course_code, l.lab_title, string_agg(concat(rtrim(ls.name), ' ', rtrim(ls.surname)), ', ') full_name, string_agg(ls.email, ', ') email, p.weekday, p.start_time, p.end_time, p.room_id
 from "Participates" p, "LearningActivity" la, "Lab" l, "LabStaff" ls, "Sector" s, "Semester" sem, "Room" r
 where p.amka = ls.amka and
@@ -28,12 +28,12 @@ where p.amka = ls.amka and
       r.room_type = 'lab_room'
 group by p.course_code, l.lab_title, p.course_code, p.weekday, p.start_time, p.end_time, p.room_id;
 
-create trigger ex_7_2_trigger instead of update
-    on "ex_7_2"
+create trigger part_b_ex_2_2_trigger instead of update
+    on "part_b_ex_2_2"
     for each row
-    execute procedure ex_7_2_handler();
+    execute procedure part_b_ex_2_2_handler();
 
-create or replace function ex_7_2_handler() returns trigger
+create or replace function part_b_ex_2_2_handler() returns trigger
     volatile
     language plpgsql
 as
@@ -52,7 +52,7 @@ $$
         end if;
 
         -- check and insert new lab staff
-        for temp_new_personell in (select * from ex_7_2_extract_personell_info(new.full_name, new.email))
+        for temp_new_personell in (select * from part_b_ex_2_2_extract_personell_info(new.full_name, new.email))
         loop
             -- CHECK #2 : validness of lab
             select l.lab_code into expected_lab from "Lab" l, "Sector" s where l.sector_code = s.sector_code and l.lab_title = new.lab_title and s.sector_title = 'Τομέας Πληροφορικής';
@@ -71,7 +71,7 @@ $$
             -- Update working lab of old lab staff with new lab code
             update "LabStaff" ls set labworks = expected_lab.lab_code where ls.amka = temp_new_personell.amka;
             -- Insert new personell if not present already
-            select p.role, p.amka, p.room_id, p.start_time, p.end_time, p.weekday, p.course_code, p.serial_number into temp_participates from "Participates" p, ex_7_2_extract_personell_info(old.full_name, old.email) old_pi, "Semester" sem where p.role = 'responsible' and p.amka = old_pi.amka and temp_new_personell.id = old_pi.id and p.room_id = new.room_id and p.start_time = new.start_time and p.end_time = new.end_time and p.weekday = new.weekday and p.course_code = new.course_code and p.serial_number = sem.semester_id and sem.semester_status = 'present';
+            select p.role, p.amka, p.room_id, p.start_time, p.end_time, p.weekday, p.course_code, p.serial_number into temp_participates from "Participates" p, part_b_ex_2_2_extract_personell_info(old.full_name, old.email) old_pi, "Semester" sem where p.role = 'responsible' and p.amka = old_pi.amka and temp_new_personell.id = old_pi.id and p.room_id = new.room_id and p.start_time = new.start_time and p.end_time = new.end_time and p.weekday = new.weekday and p.course_code = new.course_code and p.serial_number = sem.semester_id and sem.semester_status = 'present';
             if temp_participates is null then
                 insert into "Participates" values ('responsible', temp_new_personell.amka, new.room_id, new.start_time, new.end_time, new.weekday, new.course_code, (select semester_id from "Semester" where semester_status = 'present')) on conflict do nothing;
             end if;
@@ -79,12 +79,12 @@ $$
         end loop;
 
         -- remove excess old lab staff (in case the new lab staff has less people than before)
-        delete from "Participates" p using "Semester" sem, ex_7_2_extract_personell_info(new.full_name, new.email) old_pi where sem.semester_status = 'present' and sem.semester_id = p.serial_number and p.role = 'responsible' and p.amka = old_pi.amka and old.room_id = p.room_id and old.start_time = p.start_time and old.end_time = p.end_time and old.weekday = p.weekday and old.course_code = p.course_code and old_pi.id >= counter;
+        delete from "Participates" p using "Semester" sem, part_b_ex_2_2_extract_personell_info(new.full_name, new.email) old_pi where sem.semester_status = 'present' and sem.semester_id = p.serial_number and p.role = 'responsible' and p.amka = old_pi.amka and old.room_id = p.room_id and old.start_time = p.start_time and old.end_time = p.end_time and old.weekday = p.weekday and old.course_code = p.course_code and old_pi.id >= counter;
         return new;
     END;
 $$;
 
-create or replace function ex_7_2_extract_personell_info(full_names text, emails text) returns table (id int, amka int, name char(30), surname char(30), email text)
+create or replace function part_b_ex_2_2_extract_personell_info(full_names text, emails text) returns table (id int, amka int, name char(30), surname char(30), email text)
     volatile
     language plpgsql
 as
